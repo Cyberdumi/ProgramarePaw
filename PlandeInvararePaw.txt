@@ -1,0 +1,1800 @@
+//Practica
+//
+//
+//
+namespace PracticaApp
+{
+    public class Companie
+    {
+        public int Id { get; set; }
+        public string Nume { get; set; }
+
+        public Companie(int id, string nume)
+        {
+            Id = id;
+            Nume = nume;
+        }
+
+        public override string ToString() => Nume;
+    }
+}
+// Form1
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows.Forms;
+
+namespace PracticaApp
+{
+    public partial class Form1 : Form
+    {
+        private List<Companie> companies = new List<Companie>();
+        private List<Student> students = new List<Student>();
+
+        public Form1()
+        {
+            InitializeComponent();
+            InitializeCompanies();
+            InitializeListView();
+        }
+
+        private void InitializeCompanies()
+        {
+            companies.Add(new Companie(1, "Contoso"));
+            companies.Add(new Companie(2, "Fabrikam"));
+            companies.Add(new Companie(3, "Adventure Works"));
+        }
+
+        private void InitializeListView()
+        {
+            listViewStudents.View = View.Details;
+            listViewStudents.FullRowSelect = true;
+            listViewStudents.Columns.Add("Nume", 150);
+            listViewStudents.Columns.Add("Data nașterii", 100);
+            listViewStudents.Columns.Add("Companie", 150);
+        }
+
+        private void btnAdd_Click(object sender, EventArgs e)
+        {
+            using (var form = new FormStudent(companies))
+            {
+                if (form.ShowDialog() == DialogResult.OK)
+                {
+                    students.Add(form.Student);
+                    RefreshListView();
+                }
+            }
+        }
+
+        private void RefreshListView()
+        {
+            listViewStudents.Items.Clear();
+            foreach (var s in students)
+            {
+                var compName = companies
+                    .FirstOrDefault(c => c.Id == s.IdCompanie)?.Nume
+                    ?? "";
+                var item = new ListViewItem(s.Nume);
+                item.SubItems.Add(s.DataNasterii.ToShortDateString());
+                item.SubItems.Add(compName);
+                listViewStudents.Items.Add(item);
+            }
+        }
+
+        private void listViewStudents_DoubleClick(object sender, EventArgs e)
+        {
+            if (listViewStudents.SelectedIndices.Count == 0) return;
+            int idx = listViewStudents.SelectedIndices[0];
+            var orig = students[idx];
+            using (var form = new FormStudent(companies, orig))
+            {
+                if (form.ShowDialog() == DialogResult.OK)
+                {
+                    students[idx] = form.Student;
+                    RefreshListView();
+                }
+            }
+        }
+
+        private void btnDelete_Click(object sender, EventArgs e)
+        {
+            if (listViewStudents.SelectedIndices.Count == 0) return;
+            int idx = listViewStudents.SelectedIndices[0];
+            if (MessageBox.Show(
+                    "Sigur vrei să ștergi acest student?",
+                    "Confirmare", MessageBoxButtons.YesNo, MessageBoxIcon.Question
+                ) == DialogResult.Yes)
+            {
+                students.RemoveAt(idx);
+                RefreshListView();
+            }
+        }
+
+        private void btnCheck_Click(object sender, EventArgs e)
+        {
+            bool allHave = students.All(s => (bool)s);
+            MessageBox.Show(
+                allHave
+                    ? "Toți studenții au asociată o companie."
+                    : "Nu toți studenții au asociată o companie.",
+                "Verificare"
+            );
+        }
+    }
+}
+//Form1.designer
+namespace PracticaApp
+{
+    partial class Form1
+    {
+        private System.ComponentModel.IContainer components = null;
+        private System.Windows.Forms.ListView listViewStudents;
+        private System.Windows.Forms.Button btnAdd;
+        private System.Windows.Forms.Button btnDelete;
+        private System.Windows.Forms.Button btnCheck;
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
+                components.Dispose();
+            base.Dispose(disposing);
+        }
+
+        private void InitializeComponent()
+        {
+            listViewStudents = new ListView();
+            btnAdd = new Button();
+            btnDelete = new Button();
+            btnCheck = new Button();
+            SuspendLayout();
+            // 
+            // listViewStudents
+            // 
+            listViewStudents.Location = new Point(12, 12);
+            listViewStudents.Name = "listViewStudents";
+            listViewStudents.Size = new Size(460, 300);
+            listViewStudents.TabIndex = 0;
+            listViewStudents.UseCompatibleStateImageBehavior = false;
+            listViewStudents.DoubleClick += listViewStudents_DoubleClick;
+            // 
+            // btnAdd
+            // 
+            btnAdd.Location = new Point(490, 20);
+            btnAdd.Name = "btnAdd";
+            btnAdd.Size = new Size(433, 99);
+            btnAdd.TabIndex = 1;
+            btnAdd.Text = "Adaugă student";
+            btnAdd.UseVisualStyleBackColor = true;
+            btnAdd.Click += btnAdd_Click;
+            // 
+            // btnDelete
+            // 
+            btnDelete.Location = new Point(532, 142);
+            btnDelete.Name = "btnDelete";
+            btnDelete.Size = new Size(354, 90);
+            btnDelete.TabIndex = 2;
+            btnDelete.Text = "Șterge student";
+            btnDelete.UseVisualStyleBackColor = true;
+            btnDelete.Click += btnDelete_Click;
+            // 
+            // btnCheck
+            // 
+            btnCheck.Location = new Point(549, 312);
+            btnCheck.Name = "btnCheck";
+            btnCheck.Size = new Size(315, 140);
+            btnCheck.TabIndex = 3;
+            btnCheck.Text = "Verifică asocieri";
+            btnCheck.UseVisualStyleBackColor = true;
+            btnCheck.Click += btnCheck_Click;
+            // 
+            // Form1
+            // 
+            ClientSize = new Size(1565, 776);
+            Controls.Add(btnCheck);
+            Controls.Add(btnDelete);
+            Controls.Add(btnAdd);
+            Controls.Add(listViewStudents);
+            Name = "Form1";
+            Text = "Gestionare studenți";
+            ResumeLayout(false);
+        }
+    }
+}
+//FormStudent
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows.Forms;
+using System.Xml.Linq;
+
+namespace PracticaApp
+{
+    public partial class FormStudent : Form
+    {
+        private List<Companie> companies;
+        public Student Student { get; private set; }
+
+        public FormStudent(List<Companie> companies, Student existing = null)
+        {
+            InitializeComponent();
+            this.companies = companies;
+            LoadCompanies();
+
+            if (existing != null)
+            {
+                txtName.Text = existing.Nume;
+                dtpBirth.Value = existing.DataNasterii;
+                // Select companie sau "Nicio companie"
+                var sel = companies.FirstOrDefault(c => c.Id == existing.IdCompanie);
+                cbCompanies.SelectedItem = sel ?? cbCompanies.Items[0];
+            }
+        }
+
+        private void LoadCompanies()
+        {
+            cbCompanies.Items.Clear();
+            cbCompanies.Items.Add(new Companie(0, "Nicio companie"));
+            foreach (var c in companies)
+                cbCompanies.Items.Add(c);
+            cbCompanies.DisplayMember = "Nume";
+            cbCompanies.SelectedIndex = 0;
+        }
+
+        private void btnOK_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                var nume = txtName.Text.Trim();
+                if (nume.Length < 2)
+                    throw new Exception("Numele trebuie să aibă cel puțin 2 caractere.");
+
+                var dataN = dtpBirth.Value;
+                int varsta = DateTime.Now.Year - dataN.Year -
+                    (DateTime.Now.DayOfYear < dataN.DayOfYear ? 1 : 0);
+
+                if (varsta <= 20)
+                    throw new Exception("Studentul trebuie să aibă mai mult de 20 de ani.");
+
+                var comp = cbCompanies.SelectedItem as Companie;
+                Student = new Student(nume, dataN, comp?.Id ?? 0);
+                DialogResult = DialogResult.OK;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    ex.Message,
+                    "Eroare validare",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+                DialogResult = DialogResult.None;
+            }
+        }
+    }
+}
+// FormStudent.designer
+namespace PracticaApp
+{
+    partial class FormStudent
+    {
+        private System.ComponentModel.IContainer components = null;
+        private System.Windows.Forms.Label lblName;
+        private System.Windows.Forms.TextBox txtName;
+        private System.Windows.Forms.Label lblBirth;
+        private System.Windows.Forms.DateTimePicker dtpBirth;
+        private System.Windows.Forms.Label lblComp;
+        private System.Windows.Forms.ComboBox cbCompanies;
+        private System.Windows.Forms.Button btnOK;
+        private System.Windows.Forms.Button btnCancel;
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
+                components.Dispose();
+            base.Dispose(disposing);
+        }
+
+        private void InitializeComponent()
+        {
+            lblName = new Label();
+            txtName = new TextBox();
+            lblBirth = new Label();
+            dtpBirth = new DateTimePicker();
+            lblComp = new Label();
+            cbCompanies = new ComboBox();
+            btnOK = new Button();
+            btnCancel = new Button();
+            SuspendLayout();
+            // 
+            // lblName
+            // 
+            lblName.AutoSize = true;
+            lblName.Location = new Point(15, 20);
+            lblName.Name = "lblName";
+            lblName.Size = new Size(95, 37);
+            lblName.TabIndex = 7;
+            lblName.Text = "Nume:";
+            // 
+            // txtName
+            // 
+            txtName.Location = new Point(224, 14);
+            txtName.Name = "txtName";
+            txtName.Size = new Size(397, 43);
+            txtName.TabIndex = 6;
+            // 
+            // lblBirth
+            // 
+            lblBirth.AutoSize = true;
+            lblBirth.Location = new Point(12, 81);
+            lblBirth.Name = "lblBirth";
+            lblBirth.Size = new Size(172, 37);
+            lblBirth.TabIndex = 5;
+            lblBirth.Text = "Data nașterii:";
+            // 
+            // dtpBirth
+            // 
+            dtpBirth.Location = new Point(224, 66);
+            dtpBirth.Name = "dtpBirth";
+            dtpBirth.Size = new Size(549, 43);
+            dtpBirth.TabIndex = 4;
+            // 
+            // lblComp
+            // 
+            lblComp.AutoSize = true;
+            lblComp.Location = new Point(12, 135);
+            lblComp.Name = "lblComp";
+            lblComp.Size = new Size(145, 37);
+            lblComp.TabIndex = 3;
+            lblComp.Text = "Companie:";
+            // 
+            // cbCompanies
+            // 
+            cbCompanies.DropDownStyle = ComboBoxStyle.DropDownList;
+            cbCompanies.Location = new Point(224, 135);
+            cbCompanies.Name = "cbCompanies";
+            cbCompanies.Size = new Size(468, 45);
+            cbCompanies.TabIndex = 2;
+            // 
+            // btnOK
+            // 
+            btnOK.Location = new Point(59, 220);
+            btnOK.Name = "btnOK";
+            btnOK.Size = new Size(107, 72);
+            btnOK.TabIndex = 1;
+            btnOK.Text = "OK";
+            btnOK.UseVisualStyleBackColor = true;
+            btnOK.Click += btnOK_Click;
+            // 
+            // btnCancel
+            // 
+            btnCancel.DialogResult = DialogResult.Cancel;
+            btnCancel.Location = new Point(245, 226);
+            btnCancel.Name = "btnCancel";
+            btnCancel.Size = new Size(194, 61);
+            btnCancel.TabIndex = 0;
+            btnCancel.Text = "Anulează";
+            btnCancel.UseVisualStyleBackColor = true;
+            // 
+            // FormStudent
+            // 
+            AcceptButton = btnOK;
+            CancelButton = btnCancel;
+            ClientSize = new Size(979, 491);
+            Controls.Add(btnCancel);
+            Controls.Add(btnOK);
+            Controls.Add(cbCompanies);
+            Controls.Add(lblComp);
+            Controls.Add(dtpBirth);
+            Controls.Add(lblBirth);
+            Controls.Add(txtName);
+            Controls.Add(lblName);
+            Name = "FormStudent";
+            Text = "Adaugă / Modifică student";
+            ResumeLayout(false);
+            PerformLayout();
+        }
+    }
+}
+//Program
+using System;
+using System.Windows.Forms;
+
+namespace PracticaApp
+{
+    static class Program
+    {
+        [STAThread]
+        static void Main()
+        {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            Application.Run(new Form1());
+        }
+    }
+}
+
+// student.cs
+using System;
+
+namespace PracticaApp
+{
+    public class Student
+    {
+        public string Nume { get; set; }
+        public DateTime DataNasterii { get; set; }
+        public int IdCompanie { get; set; }
+
+        public Student(string nume, DateTime dataNasterii, int idCompanie)
+        {
+            Nume = nume;
+            DataNasterii = dataNasterii;
+            IdCompanie = idCompanie;
+        }
+
+        public int Varsta =>
+            DateTime.Now.Year - DataNasterii.Year -
+            (DateTime.Now.DayOfYear < DataNasterii.DayOfYear ? 1 : 0);
+
+        public static explicit operator bool(Student s) =>
+            s.IdCompanie > 0;
+    }
+}
+
+
+
+//  HRApp
+// Angajat.cs
+using System;
+
+namespace HrApp
+{
+    public class Angajat
+    {
+        public string Nume { get; set; }
+        public decimal Salariu { get; set; }
+        public int? IdDepartament { get; set; }
+
+        public Angajat(string nume, decimal salariu, int? idDept)
+        {
+            Nume = nume;
+            Salariu = salariu;
+            IdDepartament = idDept;
+        }
+    }
+}
+
+// Departament.cs
+using System;
+
+namespace HrApp
+{
+    public class Department
+    {
+        public int Id { get; set; }
+        public string Nume { get; set; }
+
+        public Department(int id, string nume)
+        {
+            Id = id;
+            Nume = nume;
+        }
+
+        public override string ToString()
+        {
+            return Nume;
+        }
+    }
+}
+// Form1.designer
+namespace HrApp
+{
+    partial class Form1
+    {
+        private System.ComponentModel.IContainer components = null;
+        private System.Windows.Forms.ListBox lbDepartamente;
+        private System.Windows.Forms.Label label1;
+        private System.Windows.Forms.TextBox txtNume;
+        private System.Windows.Forms.Label label2;
+        private System.Windows.Forms.NumericUpDown numSalariu;
+        private System.Windows.Forms.Button btnAddUpdate;
+        private System.Windows.Forms.ListView lvAngajati;
+        private System.Windows.Forms.ColumnHeader chNume;
+        private System.Windows.Forms.ColumnHeader chSalariu;
+        private System.Windows.Forms.ColumnHeader chDepartament;
+        private System.Windows.Forms.ContextMenuStrip cmsAngajat;
+        private System.Windows.Forms.ToolStripMenuItem editToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem deleteToolStripMenuItem;
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
+                components.Dispose();
+            base.Dispose(disposing);
+        }
+
+        private void InitializeComponent()
+        {
+            this.components = new System.ComponentModel.Container();
+            this.lbDepartamente = new System.Windows.Forms.ListBox();
+            this.label1 = new System.Windows.Forms.Label();
+            this.txtNume = new System.Windows.Forms.TextBox();
+            this.label2 = new System.Windows.Forms.Label();
+            this.numSalariu = new System.Windows.Forms.NumericUpDown();
+            this.btnAddUpdate = new System.Windows.Forms.Button();
+            this.lvAngajati = new System.Windows.Forms.ListView();
+            this.chNume = new System.Windows.Forms.ColumnHeader();
+            this.chSalariu = new System.Windows.Forms.ColumnHeader();
+            this.chDepartament = new System.Windows.Forms.ColumnHeader();
+            this.cmsAngajat = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.editToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.deleteToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+
+            ((System.ComponentModel.ISupportInitialize)(this.numSalariu)).BeginInit();
+            this.cmsAngajat.SuspendLayout();
+            this.SuspendLayout();
+            // 
+            // lbDepartamente
+            // 
+            this.lbDepartamente.FormattingEnabled = true;
+            this.lbDepartamente.Location = new System.Drawing.Point(12, 25);
+            this.lbDepartamente.Name = "lbDepartamente";
+            this.lbDepartamente.Size = new System.Drawing.Size(120, 95);
+            // 
+            // label1
+            // 
+            this.label1.AutoSize = true;
+            this.label1.Location = new System.Drawing.Point(148, 25);
+            this.label1.Text = "Nume angajat:";
+            // 
+            // txtNume
+            // 
+            this.txtNume.Location = new System.Drawing.Point(220, 22);
+            this.txtNume.Name = "txtNume";
+            this.txtNume.Size = new System.Drawing.Size(150, 20);
+            // 
+            // label2
+            // 
+            this.label2.AutoSize = true;
+            this.label2.Location = new System.Drawing.Point(148, 60);
+            this.label2.Text = "Salariu:";
+            // 
+            // numSalariu
+            // 
+            this.numSalariu.DecimalPlaces = 2;
+            this.numSalariu.Location = new System.Drawing.Point(220, 58);
+            this.numSalariu.Maximum = new decimal(new int[] { 1000000, 0, 0, 0 });
+            this.numSalariu.Name = "numSalariu";
+            this.numSalariu.Size = new System.Drawing.Size(150, 20);
+            // 
+            // btnAddUpdate
+            // 
+            this.btnAddUpdate.Location = new System.Drawing.Point(151, 95);
+            this.btnAddUpdate.Name = "btnAddUpdate";
+            this.btnAddUpdate.Size = new System.Drawing.Size(219, 23);
+            this.btnAddUpdate.Text = "Adaugă";
+            this.btnAddUpdate.Click += new System.EventHandler(this.btnAddUpdate_Click);
+            // 
+            // lvAngajati
+            // 
+            this.lvAngajati.Columns.AddRange(new System.Windows.Forms.ColumnHeader[] {
+                this.chNume, this.chSalariu, this.chDepartament});
+            this.lvAngajati.FullRowSelect = true;
+            this.lvAngajati.GridLines = true;
+            this.lvAngajati.Location = new System.Drawing.Point(12, 140);
+            this.lvAngajati.Name = "lvAngajati";
+            this.lvAngajati.Size = new System.Drawing.Size(358, 200);
+            this.lvAngajati.View = System.Windows.Forms.View.Details;
+            this.lvAngajati.ContextMenuStrip = this.cmsAngajat;
+            // 
+            // chNume
+            // 
+            this.chNume.Text = "Nume";
+            this.chNume.Width = 120;
+            // 
+            // chSalariu
+            // 
+            this.chSalariu.Text = "Salariu";
+            this.chSalariu.Width = 80;
+            // 
+            // chDepartament
+            // 
+            this.chDepartament.Text = "Departament";
+            this.chDepartament.Width = 140;
+            // 
+            // cmsAngajat
+            // 
+            this.cmsAngajat.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+                this.editToolStripMenuItem, this.deleteToolStripMenuItem});
+            // 
+            // editToolStripMenuItem
+            // 
+            this.editToolStripMenuItem.Text = "Modifică";
+            this.editToolStripMenuItem.Click += new System.EventHandler(this.editToolStripMenuItem_Click);
+            // 
+            // deleteToolStripMenuItem
+            // 
+            this.deleteToolStripMenuItem.Text = "Șterge";
+            this.deleteToolStripMenuItem.Click += new System.EventHandler(this.deleteToolStripMenuItem_Click);
+            // 
+            // Form1
+            // 
+            this.ClientSize = new System.Drawing.Size(382, 352);
+            this.Controls.Add(this.lvAngajati);
+            this.Controls.Add(this.btnAddUpdate);
+            this.Controls.Add(this.numSalariu);
+            this.Controls.Add(this.label2);
+            this.Controls.Add(this.txtNume);
+            this.Controls.Add(this.label1);
+            this.Controls.Add(this.lbDepartamente);
+            this.Name = "Form1";
+            this.Text = "Departament HR";
+            this.Load += new System.EventHandler(this.Form1_Load);
+            ((System.ComponentModel.ISupportInitialize)(this.numSalariu)).EndInit();
+            this.cmsAngajat.ResumeLayout(false);
+            this.ResumeLayout(false);
+            this.PerformLayout();
+        }
+    }
+}
+//Form1
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Windows.Forms;
+
+namespace HrApp
+{
+    public partial class Form1 : Form
+    {
+        private List<Department> departamente = new List<Department>();
+        private List<Angajat> angajati = new List<Angajat>();
+        private int editingIndex = -1;
+
+        public Form1()
+        {
+            InitializeComponent();
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            // Încarcă departamentele din fișier
+            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Departamente.txt");
+            if (File.Exists(path))
+            {
+                foreach (var linie in File.ReadAllLines(path))
+                {
+                    var parts = linie.Split(',');
+                    if (parts.Length == 2 &&
+                        int.TryParse(parts[0], out int id) &&
+                        !string.IsNullOrWhiteSpace(parts[1]))
+                    {
+                        departamente.Add(new Department(id, parts[1].Trim()));
+                    }
+                }
+            }
+            lbDepartamente.DataSource = departamente;
+        }
+
+        private void btnAddUpdate_Click(object sender, EventArgs e)
+        {
+            // Validări simple
+            if (txtNume.Text.Length < 2)
+            {
+                MessageBox.Show("Numele trebuie să aibă cel puțin 2 caractere.");
+                return;
+            }
+            if (numSalariu.Value <= 0)
+            {
+                MessageBox.Show("Salariul trebuie să fie > 0.");
+                return;
+            }
+
+            int? idDept = null;
+            if (lbDepartamente.SelectedItem is Department dep)
+                idDept = dep.Id;
+
+            if (editingIndex >= 0)
+            {
+                // Modificare
+                var ang = angajati[editingIndex];
+                ang.Nume = txtNume.Text.Trim();
+                ang.Salariu = numSalariu.Value;
+                ang.IdDepartament = idDept;
+                editingIndex = -1;
+                btnAddUpdate.Text = "Adaugă";
+            }
+            else
+            {
+                // Adăugare nouă
+                angajati.Add(new Angajat(txtNume.Text.Trim(), numSalariu.Value, idDept));
+            }
+
+            RefreshListView();
+            ClearInputs();
+        }
+
+        private void RefreshListView()
+        {
+            lvAngajati.Items.Clear();
+            foreach (var a in angajati)
+            {
+                var deptName = departamente.FirstOrDefault(d => d.Id == a.IdDepartament)?.Nume ?? "";
+                var item = new ListViewItem(new[] {
+                    a.Nume,
+                    a.Salariu.ToString("F2"),
+                    deptName
+                });
+                lvAngajati.Items.Add(item);
+            }
+        }
+
+        private void ClearInputs()
+        {
+            txtNume.Clear();
+            numSalariu.Value = numSalariu.Minimum;
+            lbDepartamente.ClearSelected();
+        }
+
+        private void deleteToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (lvAngajati.SelectedIndices.Count > 0)
+            {
+                int idx = lvAngajati.SelectedIndices[0];
+                angajati.RemoveAt(idx);
+                RefreshListView();
+            }
+        }
+
+        private void editToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (lvAngajati.SelectedIndices.Count > 0)
+            {
+                editingIndex = lvAngajati.SelectedIndices[0];
+                var a = angajati[editingIndex];
+                txtNume.Text = a.Nume;
+                numSalariu.Value = a.Salariu;
+                lbDepartamente.SelectedItem = departamente.FirstOrDefault(d => d.Id == a.IdDepartament);
+                btnAddUpdate.Text = "Salvează modificările";
+            }
+        }
+    }
+}
+
+// OutSourcing app
+// Angajat.cs
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace EX1.Models
+{
+    public class Angajat
+
+    {
+        public string Nume { get; set; }
+        public DateTime DataNasterii { get; set; }
+        public int IdCompanie { get; set; }
+
+       
+
+
+    }
+}
+// Companie.cs
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace EX1.Models
+{
+    public class Companie
+    {
+        public int Id {  get; set; }
+        public string Nume { get; set; }
+
+
+    }
+}
+// AddForm.cs
+using EX1.Models;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace EX1
+{
+    public partial class AddForm : Form
+    {
+        private List<Companie> companii;
+        public Angajat angajatCreat {  get; set; }
+        private ErrorProvider errorProvider;
+        public AddForm(List<Companie> companii)
+        {
+            InitializeComponent();
+            this.companii = companii;
+            comboBox1.DataSource = companii;
+            comboBox1.DisplayMember = "Nume";
+            comboBox1.ValueMember = "Id";
+            comboBox1.SelectedIndex = -1;
+
+            btnAdd.Click += btnAdd_Click;
+
+            errorProvider = new ErrorProvider();
+            errorProvider.ContainerControl = this;
+        }
+
+        private void btnAdd_Click(object sender, EventArgs e)
+        {
+            bool isValid = true;
+            errorProvider.Clear();
+            if (string.IsNullOrWhiteSpace(tbNume.Text))
+            {
+                errorProvider.SetError(tbNume, "Numele nu poate fi gol.");
+                isValid = false;
+            }
+   
+
+            DateTime dataNasterii = dateTimePicker1.Value;
+            int varsta = DateTime.Now.Year - dataNasterii.Year;
+            if (dataNasterii > DateTime.Now.AddYears(-varsta)) varsta--;
+            if (varsta < 18) {
+                errorProvider.SetError(dateTimePicker1, "Angajatul trebuie sa aiba macar 20 de ani");
+                isValid = false;
+
+            }
+
+            if (!isValid)
+                return;
+            string nume = tbNume.Text;
+            
+            Companie companieSelectata = comboBox1.SelectedItem as Companie;
+
+            angajatCreat = new Angajat
+            {
+                Nume = nume,
+                DataNasterii = dataNasterii,
+                IdCompanie = companieSelectata?.Id ?? 0
+            };
+
+            this.DialogResult = DialogResult.OK;
+            this.Close();
+
+        }
+
+        public AddForm(List<Companie> companii, Angajat angajatDeEditat) : this(companii)
+        {
+            tbNume.Text = angajatDeEditat.Nume;
+            dateTimePicker1.Value = angajatDeEditat.DataNasterii;
+
+            var companie = companii.FirstOrDefault(c => c.Id == angajatDeEditat.IdCompanie);
+            if (companie != null)
+                comboBox1.SelectedItem = companie;
+        }
+    }
+}
+//AddForm.designer 
+namespace EX1
+{
+    partial class AddForm
+    {
+        /// <summary>
+        /// Required designer variable.
+        /// </summary>
+        private System.ComponentModel.IContainer components = null;
+
+        /// <summary>
+        /// Clean up any resources being used.
+        /// </summary>
+        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
+            {
+                components.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        #region Windows Form Designer generated code
+
+        /// <summary>
+        /// Required method for Designer support - do not modify
+        /// the contents of this method with the code editor.
+        /// </summary>
+        private void InitializeComponent()
+        {
+            label1 = new Label();
+            label2 = new Label();
+            label3 = new Label();
+            tbNume = new TextBox();
+            dateTimePicker1 = new DateTimePicker();
+            comboBox1 = new ComboBox();
+            btnAdd = new Button();
+            SuspendLayout();
+            // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Location = new Point(26, 33);
+            label1.Name = "label1";
+            label1.Size = new Size(69, 25);
+            label1.TabIndex = 0;
+            label1.Text = "Nume: ";
+            // 
+            // label2
+            // 
+            label2.AutoSize = true;
+            label2.Location = new Point(24, 79);
+            label2.Name = "label2";
+            label2.Size = new Size(122, 25);
+            label2.TabIndex = 1;
+            label2.Text = "Data Nasterii: ";
+            // 
+            // label3
+            // 
+            label3.AutoSize = true;
+            label3.Location = new Point(26, 127);
+            label3.Name = "label3";
+            label3.Size = new Size(93, 25);
+            label3.TabIndex = 2;
+            label3.Text = "Companie";
+            // 
+            // tbNume
+            // 
+            tbNume.Location = new Point(98, 36);
+            tbNume.Name = "tbNume";
+            tbNume.Size = new Size(150, 31);
+            tbNume.TabIndex = 3;
+            // 
+            // dateTimePicker1
+            // 
+            dateTimePicker1.Location = new Point(152, 79);
+            dateTimePicker1.Name = "dateTimePicker1";
+            dateTimePicker1.Size = new Size(300, 31);
+            dateTimePicker1.TabIndex = 4;
+            // 
+            // comboBox1
+            // 
+            comboBox1.FormattingEnabled = true;
+            comboBox1.Location = new Point(137, 127);
+            comboBox1.Name = "comboBox1";
+            comboBox1.Size = new Size(182, 33);
+            comboBox1.TabIndex = 5;
+            // 
+            // btnAdd
+            // 
+            btnAdd.Location = new Point(29, 187);
+            btnAdd.Name = "btnAdd";
+            btnAdd.Size = new Size(112, 34);
+            btnAdd.TabIndex = 6;
+            btnAdd.Text = "Add";
+            btnAdd.UseVisualStyleBackColor = true;
+            btnAdd.Click += btnAdd_Click;
+            // 
+            // AddForm
+            // 
+            AutoScaleDimensions = new SizeF(10F, 25F);
+            AutoScaleMode = AutoScaleMode.Font;
+            ClientSize = new Size(534, 238);
+            Controls.Add(btnAdd);
+            Controls.Add(comboBox1);
+            Controls.Add(dateTimePicker1);
+            Controls.Add(tbNume);
+            Controls.Add(label3);
+            Controls.Add(label2);
+            Controls.Add(label1);
+            Name = "AddForm";
+            Text = "AddForm";
+            ResumeLayout(false);
+            PerformLayout();
+        }
+
+        #endregion
+
+        private Label label1;
+        private Label label2;
+        private Label label3;
+        private TextBox tbNume;
+        private DateTimePicker dateTimePicker1;
+        private ComboBox comboBox1;
+        private Button btnAdd;
+    }
+}
+
+//MainForm.cs
+using EX1.Models;
+
+namespace EX1
+{
+    public partial class MainForm : Form
+    {
+        private List<Companie> companii = new List<Companie>();
+        private List<Angajat> angajati = new List<Angajat>();
+
+
+
+        public MainForm()
+        {
+            InitializeComponent();
+            this.Load += MainForm_Load;
+            lvAngajati.DoubleClick += lvAngajati_DoubleClick;
+
+
+        }
+
+        private void MainForm_Load(object sender, EventArgs e)
+        {
+            companii.Add(new Companie { Id = 1, Nume = "Google" });
+            companii.Add(new Companie { Id = 2, Nume = "Amazon" });
+            companii.Add(new Companie { Id = 3, Nume = "Microsoft" });
+
+
+        }
+
+        private void btnAdaugaAngajati_Click(object sender, EventArgs e)
+        {
+            AddForm addForm = new AddForm(companii);
+            if (addForm.ShowDialog() == DialogResult.OK)
+            {
+                angajati.Add(addForm.angajatCreat);
+                AfisareInListView();
+            }
+        }
+
+        private void AfisareInListView()
+        {
+            lvAngajati.Items.Clear();
+
+
+
+            foreach (var angajat in angajati)
+            {
+                string companie = companii.FirstOrDefault(c => c.Id == angajat.IdCompanie)?.Nume ?? "Fara companie";
+                var item = new ListViewItem(new[]
+                {
+                    angajat.Nume,
+                    angajat.DataNasterii.ToShortTimeString(),
+                    companie
+                });
+                lvAngajati.Items.Add(item);
+            }
+        }
+
+        private void lvAngajati_DoubleClick(object sender, EventArgs e)
+        {
+            if (lvAngajati.SelectedItems.Count == 0) return;
+
+            int index = lvAngajati.SelectedIndices[0];
+            Angajat angajatSelectat = angajati[index];
+
+            AddForm formEditare = new AddForm(companii, angajatSelectat); // constructor nou
+            if (formEditare.ShowDialog() == DialogResult.OK)
+            {
+                angajati[index] = formEditare.angajatCreat;
+                AfisareInListView();
+            }
+        }
+
+        private void btnDelete_Click(object sender, EventArgs e)
+        {
+            if (lvAngajati.SelectedItems.Count == 0)
+            {
+                MessageBox.Show("Selecteaza un angajat pentru a-l șterge.");
+                return;
+            }
+
+            int index = lvAngajati.SelectedIndices[0];
+
+            var confirm = MessageBox.Show(
+                "Esti sigur ca vrei sa stergi acest angajat?",
+                "Confirmare stergere",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning
+            );
+
+            if (confirm == DialogResult.Yes)
+            {
+                angajati.RemoveAt(index);
+                AfisareInListView();
+            }
+
+        }
+    }
+}
+// MainForm.designer.cs
+namespace EX1
+{
+    partial class MainForm
+    {
+        /// <summary>
+        ///  Required designer variable.
+        /// </summary>
+        private System.ComponentModel.IContainer components = null;
+
+        /// <summary>
+        ///  Clean up any resources being used.
+        /// </summary>
+        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
+            {
+                components.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        #region Windows Form Designer generated code
+
+        /// <summary>
+        ///  Required method for Designer support - do not modify
+        ///  the contents of this method with the code editor.
+        /// </summary>
+        private void InitializeComponent()
+        {
+            btnAdaugaAngajati = new Button();
+            lvAngajati = new ListView();
+            columnHeader1 = new ColumnHeader();
+            columnHeader2 = new ColumnHeader();
+            columnHeader3 = new ColumnHeader();
+            btnDelete = new Button();
+            SuspendLayout();
+            // 
+            // btnAdaugaAngajati
+            // 
+            btnAdaugaAngajati.Location = new Point(606, 46);
+            btnAdaugaAngajati.Name = "btnAdaugaAngajati";
+            btnAdaugaAngajati.Size = new Size(153, 34);
+            btnAdaugaAngajati.TabIndex = 0;
+            btnAdaugaAngajati.Text = "Add Employee";
+            btnAdaugaAngajati.UseVisualStyleBackColor = true;
+            btnAdaugaAngajati.Click += btnAdaugaAngajati_Click;
+            // 
+            // lvAngajati
+            // 
+            lvAngajati.Columns.AddRange(new ColumnHeader[] { columnHeader1, columnHeader2, columnHeader3 });
+            lvAngajati.Location = new Point(12, 97);
+            lvAngajati.Name = "lvAngajati";
+            lvAngajati.Size = new Size(765, 323);
+            lvAngajati.TabIndex = 1;
+            lvAngajati.UseCompatibleStateImageBehavior = false;
+            lvAngajati.View = View.Details;
+            // 
+            // columnHeader1
+            // 
+            columnHeader1.Text = "Nume";
+            // 
+            // columnHeader2
+            // 
+            columnHeader2.Text = "Data Nasterii";
+            // 
+            // columnHeader3
+            // 
+            columnHeader3.Text = "Companie";
+            // 
+            // btnDelete
+            // 
+            btnDelete.Location = new Point(30, 51);
+            btnDelete.Name = "btnDelete";
+            btnDelete.Size = new Size(112, 34);
+            btnDelete.TabIndex = 2;
+            btnDelete.Text = "Delete";
+            btnDelete.UseVisualStyleBackColor = true;
+            btnDelete.Click += btnDelete_Click;
+            // 
+            // MainForm
+            // 
+            AutoScaleDimensions = new SizeF(10F, 25F);
+            AutoScaleMode = AutoScaleMode.Font;
+            ClientSize = new Size(800, 450);
+            Controls.Add(btnDelete);
+            Controls.Add(lvAngajati);
+            Controls.Add(btnAdaugaAngajati);
+            Name = "MainForm";
+            Text = "Companii";
+            ResumeLayout(false);
+        }
+
+        #endregion
+
+        private Button btnAdaugaAngajati;
+        private ListView lvAngajati;
+        private ColumnHeader columnHeader1;
+        private ColumnHeader columnHeader2;
+        private ColumnHeader columnHeader3;
+        private Button btnDelete;
+    }
+}
+// Program.cs
+namespace EX1
+{
+    internal static class Program
+    {
+        /// <summary>
+        ///  The main entry point for the application.
+        /// </summary>
+        [STAThread]
+        static void Main()
+        {
+            // To customize application configuration such as set high DPI settings or default font,
+            // see https://aka.ms/applicationconfiguration.
+            ApplicationConfiguration.Initialize();
+            Application.Run(new MainForm());
+        }
+    }
+}
+
+//Smartphone
+//Producator.cs
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace BiletSmartphone.Models
+{
+    public class Producator
+    {
+        public int Id { get; set; }
+        public string Denumire { get; set; }
+
+        public Producator(int Id, string Denumire)
+        {
+            this.Id = Id;
+            this.Denumire = Denumire;
+        }
+
+        public override string ToString()
+        {
+            return $"{Id}  {Denumire}";
+        }
+    }
+}
+// Smartphone.cs
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace BiletSmartphone
+{
+    public class Smartphone
+    {
+        public int Id { get; set; }
+        public string Model { get; set; }
+        public int Stoc { get; set; }
+        public double Pret { get; set; }
+        public int AnAparitie { get; set; }
+        public int IdProducator { get; set; }
+
+        public Smartphone(int id, string model, int stoc, double pret, int anAparitie, int idProducator)
+        {
+            Id = id;
+            Model = model;
+            Stoc = stoc;
+            Pret = pret;
+            AnAparitie = anAparitie;
+            IdProducator = idProducator;
+        }
+
+        public Smartphone()
+        {
+        }
+    }
+}
+// AddForm.cs
+using BiletSmartphone;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Drawing.Text;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using BiletSmartphone.Models;
+
+namespace BiletSmartphone
+
+{
+    public partial class AddForm : Form
+    {
+        private List<Smartphone> smartphones;
+        public Smartphone smartphoneCreat { get; set; }
+        private ErrorProvider errorProvider;
+        private List<Producator> producators;
+        public AddForm(List<Producator> producators)
+        {
+
+            InitializeComponent();
+            this.producators = producators;
+            cbProducator.DataSource = producators;
+            cbProducator.DisplayMember = "Denumire";
+            cbProducator.ValueMember = "Id";
+            cbProducator.SelectedIndex = 0;
+            btnAdauga.Click += btnAdauga_Click;
+            errorProvider = new ErrorProvider();
+            errorProvider.ContainerControl = this;
+        }
+
+        private void btnAdauga_Click(object sender, EventArgs e)
+        {
+            var datetime = DateTime.Now.Year;
+            bool isValid = true;
+            errorProvider.Clear();
+            if (string.IsNullOrEmpty(tbModel.Text))
+            {
+
+                errorProvider.SetError(tbModel, "Trebuie scrisa marca");
+                isValid = false;
+            }
+            if (!int.TryParse(tbStoc.Text, out int stoc) || stoc <= 0)
+            {
+                errorProvider.SetError(tbStoc, "Trebuie adaugat un numar");
+                isValid = false;
+            }
+            if (!double.TryParse(tbPret.Text, out double pret) || pret < 0)
+            {
+                errorProvider.SetError(tbPret, "Trebuie adaugat un pret");
+                isValid = false;
+            }
+            if (!int.TryParse(tbAn.Text, out int an) || an < 1950 || an > datetime)
+            {
+                errorProvider.SetError(tbPret, "Trebuie adaugat un an");
+                isValid = false;
+            }
+
+            if (!isValid) return;
+            string model = tbModel.Text;
+            Producator producator = cbProducator.SelectedItem as Producator;
+            smartphoneCreat = new Smartphone
+            {
+                Id = 0,
+                Model = model,
+                Pret = pret,
+                Stoc = stoc,
+                AnAparitie = an,
+                IdProducator = producator.Id
+            };
+            this.DialogResult = DialogResult.OK;
+            this.Close();
+
+        }
+
+        public void PopuleazaDate(Smartphone telefon)
+        {
+            tbModel.Text = telefon.Model;
+            tbPret.Text = telefon.Pret.ToString();
+            tbStoc.Text = telefon.Stoc.ToString();
+            tbAn.Text = telefon.AnAparitie.ToString();
+
+
+            cbProducator.SelectedValue = telefon.IdProducator;
+
+            smartphoneCreat = telefon;
+        }
+    }
+}
+//AddForm.Designer.cs
+using static System.Net.Mime.MediaTypeNames;
+using System.Windows.Forms;
+using System.Xml.Linq;
+
+namespace BiletSmartphone
+{
+    partial class AddForm
+    {
+        /// <summary>
+        /// Required designer variable.
+        /// </summary>
+        private System.ComponentModel.IContainer components = null;
+
+        /// <summary>
+        /// Clean up any resources being used.
+        /// </summary>
+        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
+            {
+                components.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        #region Windows Form Designer generated code
+
+        /// <summary>
+        /// Required method for Designer support - do not modify
+        /// the contents of this method with the code editor.
+        /// </summary>
+        private void InitializeComponent()
+        {
+            label1 = new Label();
+            label2 = new Label();
+            label3 = new Label();
+            label4 = new Label();
+            label5 = new Label();
+            tbModel = new TextBox();
+            tbPret = new TextBox();
+            tbStoc = new TextBox();
+            cbProducator = new ComboBox();
+            tbAn = new TextBox();
+            btnAdauga = new Button();
+            SuspendLayout();
+            // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Location = new Point(48, 40);
+            label1.Name = "label1";
+            label1.Size = new Size(63, 25);
+            label1.TabIndex = 0;
+            label1.Text = "Model";
+            // 
+            // label2
+            // 
+            label2.AutoSize = true;
+            label2.Location = new Point(48, 77);
+            label2.Name = "label2";
+            label2.Size = new Size(43, 25);
+            label2.TabIndex = 1;
+            label2.Text = "Pret";
+            // 
+            // label3
+            // 
+            label3.AutoSize = true;
+            label3.Location = new Point(48, 112);
+            label3.Name = "label3";
+            label3.Size = new Size(46, 25);
+            label3.TabIndex = 2;
+            label3.Text = "Stoc";
+            // 
+            // label4
+            // 
+            label4.AutoSize = true;
+            label4.Location = new Point(48, 152);
+            label4.Name = "label4";
+            label4.Size = new Size(100, 25);
+            label4.TabIndex = 3;
+            label4.Text = "An Aparitie";
+            // 
+            // label5
+            // 
+            label5.AutoSize = true;
+            label5.Location = new Point(48, 185);
+            label5.Name = "label5";
+            label5.Size = new Size(100, 25);
+            label5.TabIndex = 4;
+            label5.Text = "Producator";
+            // 
+            // tbModel
+            // 
+            tbModel.Location = new Point(159, 43);
+            tbModel.Name = "tbModel";
+            tbModel.Size = new Size(150, 31);
+            tbModel.TabIndex = 5;
+            // 
+            // tbPret
+            // 
+            tbPret.Location = new Point(160, 84);
+            tbPret.Name = "tbPret";
+            tbPret.Size = new Size(150, 31);
+            tbPret.TabIndex = 6;
+            // 
+            // tbStoc
+            // 
+            tbStoc.Location = new Point(161, 122);
+            tbStoc.Name = "tbStoc";
+            tbStoc.Size = new Size(150, 31);
+            tbStoc.TabIndex = 7;
+            // 
+            // cbProducator
+            // 
+            cbProducator.FormattingEnabled = true;
+            cbProducator.Location = new Point(161, 197);
+            cbProducator.Name = "cbProducator";
+            cbProducator.Size = new Size(182, 33);
+            cbProducator.TabIndex = 9;
+            // 
+            // tbAn
+            // 
+            tbAn.Location = new Point(163, 158);
+            tbAn.Name = "tbAn";
+            tbAn.Size = new Size(150, 31);
+            tbAn.TabIndex = 10;
+            // 
+            // btnAdauga
+            // 
+            btnAdauga.Location = new Point(83, 310);
+            btnAdauga.Name = "btnAdauga";
+            btnAdauga.Size = new Size(112, 34);
+            btnAdauga.TabIndex = 11;
+            btnAdauga.Text = "Adauga";
+            btnAdauga.UseVisualStyleBackColor = true;
+            btnAdauga.Click += btnAdauga_Click;
+            // 
+            // AddForm
+            // 
+            AutoScaleDimensions = new SizeF(10F, 25F);
+            AutoScaleMode = AutoScaleMode.Font;
+            ClientSize = new Size(800, 450);
+            Controls.Add(btnAdauga);
+            Controls.Add(tbAn);
+            Controls.Add(cbProducator);
+            Controls.Add(tbStoc);
+            Controls.Add(tbPret);
+            Controls.Add(tbModel);
+            Controls.Add(label5);
+            Controls.Add(label4);
+            Controls.Add(label3);
+            Controls.Add(label2);
+            Controls.Add(label1);
+            Name = "AddForm";
+            Text = "AddForm";
+            ResumeLayout(false);
+            PerformLayout();
+        }
+
+        #endregion
+
+        private Label label1;
+        private Label label2;
+        private Label label3;
+        private Label label4;
+        private Label label5;
+        private TextBox tbModel;
+        private TextBox tbPret;
+        private TextBox tbStoc;
+        private ComboBox cbProducator;
+        private TextBox tbAn;
+        private Button btnAdauga;
+    }
+}
+// MainForm.cs
+using BiletSmartphone.Models;
+using System.Configuration;
+using System.Windows.Forms;
+using BiletSmartphone.Models;
+using Microsoft.VisualBasic.ApplicationServices;
+
+namespace BiletSmartphone
+{
+    public partial class MainForm : Form
+    {
+        private List<Smartphone> smartphones = new List<Smartphone>();
+        private List<Producator> producators = new List<Producator>();
+        public MainForm()
+        {
+            InitializeComponent();
+            this.Load += MainForm_Load;
+            dataGridView1.DoubleClick += Edit_click;
+
+        }
+
+        public void MainForm_Load(object sender, EventArgs e)
+
+        {
+            IncarcaProducatori();
+            smartphones.Add(new Smartphone(1, "S21", 24, 3000, 2021, 1));
+            smartphones.Add(new Smartphone(2, "S22", 29, 3200, 2022, 1));
+            smartphones.Add(new Smartphone(3, "16", 35, 3500, 2024, 3));
+
+            Afiseaza();
+        }
+
+        private void IncarcaProducatori()
+        {
+            string caleaFisier = "C:\\Users\\mihai\\source\\repos\\BiletSmartphone\\Producatori.txt";
+            string[] linii = File.ReadAllLines(caleaFisier);
+            foreach (string linie in linii)
+            {
+  
+                string[] campuri = linie.Split(",");
+                if (campuri.Length == 2 &&
+                    int.TryParse(campuri[0], out int id) &&
+                    !string.IsNullOrWhiteSpace(campuri[1]))
+                {
+                    producators.Add(new Producator(id, campuri[1].Trim()));
+                }
+            }
+        }
+
+        private void Afiseaza()
+        {
+            var listaAfisare = smartphones
+                .Where(s => producators.Any(p => p.Id == s.IdProducator))
+                .Select(s => new
+                {
+                    s.Id,
+                    Producator = producators.First(p => p.Id == s.IdProducator).Denumire,
+                    s.Model,
+                    s.Pret,
+                    s.AnAparitie,
+                    s.Stoc,
+                }).ToList();
+
+            dataGridView1.DataSource = null;
+            dataGridView1.DataSource = smartphones;
+
+        }
+
+        private void btnAdd_Click(object sender, EventArgs e)
+        {
+            AddForm addForm = new AddForm(producators);
+            if (addForm.ShowDialog() == DialogResult.OK)
+            {
+                Smartphone nou = addForm.smartphoneCreat;
+                nou.Id = smartphones.Any() ? smartphones.Max(s => s.Id) + 1 : 1;
+                smartphones.Add(nou);
+                Afiseaza();
+            }
+        }
+
+        private void Edit_click(object sender, EventArgs e)
+        {
+            if (dataGridView1.CurrentRow != null)
+            {
+                var rand = dataGridView1.CurrentRow.DataBoundItem;
+
+                if (rand is Smartphone smartphoneSelectat)
+                {
+                    var formEdit = new AddForm(producators);
+                    formEdit.PopuleazaDate(smartphoneSelectat);
+
+                    if (formEdit.ShowDialog() == DialogResult.OK)
+                    {
+                        Smartphone actualizat = formEdit.smartphoneCreat;
+
+                        smartphoneSelectat.Model = actualizat.Model;
+                        smartphoneSelectat.Stoc = actualizat.Stoc;
+                        smartphoneSelectat.Pret = actualizat.Pret;
+                        smartphoneSelectat.AnAparitie = actualizat.AnAparitie;
+                        smartphoneSelectat.IdProducator = actualizat.IdProducator;
+
+                        Afiseaza();
+                    }
+                }
+            }
+        }
+
+        private void btnDelete_Click(object sender, EventArgs e)
+        {
+            var index = dataGridView1.CurrentRow.DataBoundItem as Smartphone;
+            smartphones.Remove(index);
+            Afiseaza();
+        }
+    }
+}
+//MainForm.Desigenr.cs
+using static System.Net.Mime.MediaTypeNames;
+using System.Windows.Forms;
+using System.Xml.Linq;
+
+namespace BiletSmartphone
+{
+    partial class MainForm
+    {
+        /// <summary>
+        ///  Required designer variable.
+        /// </summary>
+        private System.ComponentModel.IContainer components = null;
+
+        /// <summary>
+        ///  Clean up any resources being used.
+        /// </summary>
+        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
+            {
+                components.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        #region Windows Form Designer generated code
+
+        /// <summary>
+        ///  Required method for Designer support - do not modify
+        ///  the contents of this method with the code editor.
+        /// </summary>
+        private void InitializeComponent()
+        {
+            dataGridView1 = new DataGridView();
+            btnAdd = new Button();
+            btnDelete = new Button();
+            ((System.ComponentModel.ISupportInitialize)dataGridView1).BeginInit();
+            SuspendLayout();
+            // 
+            // dataGridView1
+            // 
+            dataGridView1.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dataGridView1.Location = new Point(17, 177);
+            dataGridView1.Name = "dataGridView1";
+            dataGridView1.RowHeadersWidth = 62;
+            dataGridView1.Size = new Size(975, 394);
+            dataGridView1.TabIndex = 0;
+            // 
+            // btnAdd
+            // 
+            btnAdd.Location = new Point(38, 116);
+            btnAdd.Name = "btnAdd";
+            btnAdd.Size = new Size(112, 34);
+            btnAdd.TabIndex = 1;
+            btnAdd.Text = "Add";
+            btnAdd.UseVisualStyleBackColor = true;
+            btnAdd.Click += btnAdd_Click;
+            // 
+            // btnDelete
+            // 
+            btnDelete.Location = new Point(790, 116);
+            btnDelete.Name = "btnDelete";
+            btnDelete.Size = new Size(112, 34);
+            btnDelete.TabIndex = 2;
+            btnDelete.Text = "Delete";
+            btnDelete.UseVisualStyleBackColor = true;
+            btnDelete.Click += btnDelete_Click;
+            // 
+            // MainForm
+            // 
+            AutoScaleDimensions = new SizeF(10F, 25F);
+            AutoScaleMode = AutoScaleMode.Font;
+            ClientSize = new Size(1031, 626);
+            Controls.Add(btnDelete);
+            Controls.Add(btnAdd);
+            Controls.Add(dataGridView1);
+            Name = "MainForm";
+            Text = "Form1";
+            ((System.ComponentModel.ISupportInitialize)dataGridView1).EndInit();
+            ResumeLayout(false);
+        }
+
+        #endregion
+
+        private DataGridView dataGridView1;
+        private Button btnAdd;
+        private Button btnDelete;
+    }
+}
+// Producatori.txt
+1,Samsung
+2,Nokia
+3,Iphone
+4,Exemplu1
+5,Exexmplu2
+
+//Program.cs
+namespace BiletSmartphone
+{
+    internal static class Program
+    {
+        /// <summary>
+        ///  The main entry point for the application.
+        /// </summary>
+        [STAThread]
+        static void Main()
+        {
+            // To customize application configuration such as set high DPI settings or default font,
+            // see https://aka.ms/applicationconfiguration.
+            ApplicationConfiguration.Initialize();
+            Application.Run(new MainForm());
+        }
+    }
+}
